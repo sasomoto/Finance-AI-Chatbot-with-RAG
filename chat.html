@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FinanceAI Chatbot - Chat</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        .animate-fadeIn { animation: fadeIn 0.5s ease-out forwards; }
+        .animate-pulse { animation: pulse 1.5s infinite; }
+        .bg-gradient { background: linear-gradient(135deg, #1a332f 0%, #0a0f0d 100%); }
+        .text-gradient {
+            background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .chat-container { height: calc(100vh - 180px); }
+        .message-bubble {
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .code-block {
+            background: #1a1a1a;
+            border-radius: 4px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .typing-dots::after {
+            content: '';
+            animation: typing 1.4s infinite;
+        }
+        @keyframes typing {
+            0% { content: ''; }
+            25% { content: '.'; }
+            50% { content: '..'; }
+            75% { content: '...'; }
+        }
+    </style>
+</head>
+<body class="bg-gradient min-h-screen flex flex-col text-white">
+    <!-- Header -->
+    <header class="bg-black bg-opacity-50 p-4 shadow-lg">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <h1 class="text-3xl font-bold text-gradient">FinanceAI Chatbot</h1>
+                <span class="px-3 py-1 bg-green-600 text-xs rounded-full">LIVE</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="clear-chat" class="text-green-400 hover:text-green-300 transition">
+                    <i class="fas fa-trash-alt mr-2"></i>Clear Chat
+                </button>
+                <a href="index.html" class="text-green-400 hover:text-green-300 transition">
+                    <i class="fas fa-home mr-2"></i>Home
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Chat Area -->
+    <main class="flex-grow flex flex-col max-w-6xl mx-auto w-full p-4 chat-container">
+        <!-- Messages Container -->
+        <div id="chat-messages" class="flex-grow overflow-y-auto mb-4 space-y-4 p-4 bg-black bg-opacity-30 rounded-lg">
+            <!-- Messages will be inserted here -->
+        </div>
+
+        <!-- Input Form -->
+        <form id="chat-form" class="flex space-x-2">
+            <div class="flex-grow relative">
+                <input
+                    type="text"
+                    id="user-input"
+                    class="w-full p-4 rounded-lg bg-gray-800 text-white border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Ask about stocks, dividends, market analysis..."
+                />
+                <div id="suggestion-box" class="hidden absolute w-full bg-gray-800 border border-green-600 rounded-lg mt-1 z-10">
+                    <!-- Suggestions will be inserted here -->
+                </div>
+            </div>
+            <button
+                type="submit"
+                class="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition duration-300 transform hover:scale-105 flex items-center"
+            >
+                <i class="fas fa-paper-plane mr-2"></i>
+                Send
+            </button>
+        </form>
+    </main>
+
+    <script>
+        const chatMessages = document.getElementById('chat-messages');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const clearChatButton = document.getElementById('clear-chat');
+        const suggestionBox = document.getElementById('suggestion-box');
+
+        // Example suggestions
+        const suggestions = [
+            "Show me AAPL company information",
+            "What are the latest TSLA stock upgrades?",
+            "Get MSFT dividend dates",
+            "Show institutional holders for GOOGL",
+            "Get technical analysis for NVDA"
+        ];
+
+        // Message Templates
+        const createUserMessage = (content) => `
+            <div class="flex justify-end mb-4 animate-fadeIn">
+                <div class="message-bubble bg-green-800 p-4 rounded-lg">
+                    <p class="text-white">${escapeHtml(content)}</p>
+                </div>
+            </div>
+        `;
+
+        const createBotMessage = (content) => `
+            <div class="flex justify-start mb-4 animate-fadeIn">
+                <div class="message-bubble bg-gray-800 p-4 rounded-lg">
+                    ${formatMessage(content)}
+                </div>
+            </div>
+        `;
+
+        const createTypingIndicator = () => `
+            <div class="flex justify-start mb-4 animate-fadeIn" id="typing-indicator">
+                <div class="message-bubble bg-gray-800 p-4 rounded-lg flex items-center">
+                    <span class="mr-2">AI is thinking</span>
+                    <span class="typing-dots"></span>
+                </div>
+            </div>
+        `;
+
+        // Utility Functions
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function formatMessage(content) {
+            // Handle code blocks
+            content = content.replace(/```(.*?)```/gs, (match, code) => `
+                <pre class="code-block"><code>${escapeHtml(code)}</code></pre>
+            `);
+            
+            // Handle ticker symbols
+            content = content.replace(/\$([A-Z]{1,5})/g, '<span class="text-green-400">$$$1</span>');
+            
+            // Handle numbers and percentages
+            content = content.replace(/(-?\d+\.?\d*%?)/g, '<span class="text-yellow-400">$1</span>');
+            
+            return content;
+        }
+
+        function showSuggestions() {
+            const value = userInput.value.toLowerCase();
+            const filteredSuggestions = suggestions.filter(s => 
+                s.toLowerCase().includes(value)
+            ).slice(0, 5);
+
+            if (filteredSuggestions.length > 0 && value) {
+                suggestionBox.innerHTML = filteredSuggestions
+                    .map(s => `<div class="suggestion p-2 hover:bg-gray-700 cursor-pointer">${s}</div>`)
+                    .join('');
+                suggestionBox.classList.remove('hidden');
+            } else {
+                suggestionBox.classList.add('hidden');
+            }
+        }
+
+        // Event Listeners
+        userInput.addEventListener('input', showSuggestions);
+        userInput.addEventListener('focus', showSuggestions);
+
+        document.addEventListener('click', (e) => {
+            if (!suggestionBox.contains(e.target) && e.target !== userInput) {
+                suggestionBox.classList.add('hidden');
+            }
+        });
+
+        suggestionBox.addEventListener('click', (e) => {
+            if (e.target.classList.contains('suggestion')) {
+                userInput.value = e.target.textContent;
+                suggestionBox.classList.add('hidden');
+                userInput.focus();
+            }
+        });
+
+        clearChatButton.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear the chat history?')) {
+                chatMessages.innerHTML = '';
+                addMessage("Chat cleared. How can I help you with financial information today?", false);
+            }
+        });
+
+        async function handleSubmit(e) {
+            e.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Add user message
+            chatMessages.insertAdjacentHTML('beforeend', createUserMessage(message));
+            userInput.value = '';
+            userInput.disabled = true;
+
+            // Add typing indicator
+            chatMessages.insertAdjacentHTML('beforeend', createTypingIndicator());
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const response = await fetch('http://localhost:5000/prompt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: message })
+                });
+
+                const data = await response.json();
+                document.getElementById('typing-indicator')?.remove();
+
+                if (!response.ok) throw new Error(data.error || 'Server error');
+
+                chatMessages.insertAdjacentHTML('beforeend', createBotMessage(data.response));
+            } catch (error) {
+                document.getElementById('typing-indicator')?.remove();
+                chatMessages.insertAdjacentHTML('beforeend', createBotMessage(
+                    `Sorry, I encountered an error: ${error.message}. Please try again.`
+                ));
+            } finally {
+                userInput.disabled = false;
+                userInput.focus();
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        chatForm.addEventListener('submit', handleSubmit);
+
+        // Initial greeting
+        addMessage("👋 Hello! I'm your FinanceAI assistant. I can help you with stock analysis, company information, dividends, and more. Try asking about your favorite stocks!", false);
+
+        function addMessage(content, isUser = false) {
+            chatMessages.insertAdjacentHTML(
+                'beforeend', 
+                isUser ? createUserMessage(content) : createBotMessage(content)
+            );
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
